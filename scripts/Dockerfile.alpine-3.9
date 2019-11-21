@@ -1,0 +1,5 @@
+# Script to build oniguruma and jq library in /out directory
+
+FROM alpine:3.9
+RUN /in/script/insall-libjq-dependencies-alpine.sh
+RUN /in/script/build-libjq-static.sh /out
