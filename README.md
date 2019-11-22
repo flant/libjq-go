@@ -1,38 +1,48 @@
 # libjq-go
+
 CGO bindings for jq with cache for compiled programs
 
-## Example
+## Usage
 
 ```
 import (
   "fmt"
-  . "github.com/flant/libjq-go"
+  . "github.com/flant/libjq-go" // import Jq, JqMainThread and JqCallLoop
 )
 
 func main() {
+  // Jq instance with direct calls of libjq methods. Note that it cannot be used in go routines.
+  var jq = JqMainThread
+
   // Run one program with one input.
-  res, err := Jq().Program(".foo").Run(`{"foo":"bar"}`)
-  if err != nil {
-    panic(err)
-  }
-  fmt.Printf("filter result: %s\n", res)
-  
+  res, err := jq().Program(".foo").Run(`{"foo":"bar"}`)
+
+  // Use directory with jq modules.
+  res, err := jq().WithLibPath("./jq_lib").
+    Program(...).
+    Run(...)
+
   // Use jq state cache to speedup handling of multiple inputs.
-  jqp, err := Jq().Program(".[]|.bar").Compile()
-  if err != nil {
-    panic(err)
-  }
-  for _, data := range InputJson {
-    res, err := jqp.Run(data)
+  prg, err := jq().Program(...).Precompile()
+  for _, data := range InputJsons {
+    res, err = prg.Run(data)
     // do something with filter result ...
   }
-  
-  // Use library directory.
-  JqWithLib("./jq_lib").Program(`include "libname"; .foo|libmethod`).Run(`{"foo":"json here"}`)
-  
-}
 
+  // Use jq from go-routines.
+  // Jq() helper returns instance that use LockOsThread trick to run libjq methods in main thread.
+  done := make(chan struct{})
+
+  go func() {
+    res, err := Jq().Program(".foo").Run(`{"foo":"bar"}`)
+    done <- struct{}{}
+  }()
+
+  // main is locked here.
+  JqCallLoop(done)
+}
 ```
+
 
 ## Build
 
@@ -54,7 +64,6 @@ Now you can build your application:
 CGO_ENABLED=1 CGO_CFLAGS="${LIBJQ_CFLAGS}" CGO_LDFLAGS="${LIBJQ_LDFLAGS}" go build <your arguments>
 ```
 
-
 ## Inspired projects
 
 There are other `jq` bindings in Go:
@@ -70,3 +79,8 @@ Also these projects was very helpful:
 
 - https://github.com/robertaboukhalil/jqkungfu
 - https://github.com/doloopwhile/pyjq
+
+
+## License
+
+Apache License 2.0, see [LICENSE](LICENSE).
