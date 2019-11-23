@@ -3,8 +3,10 @@ package jq
 import (
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -96,4 +98,73 @@ func Test_Concurent_FieldAccess(t *testing.T) {
 	wg.Wait()
 }
 
-// TODO catch errors: syntax, input, program run
+// TODO tests to catch jq processing errors: syntax, input and program run
+
+// run to catch memory leaks!
+func Test_LongRunner_BigData(t *testing.T) {
+	t.SkipNow()
+
+	parallelism := 16
+
+	// There are `parallelism` of different programs and fooXXX fields,
+	// but extra field is always different.
+	job := func(jobId int) {
+		i := 100000
+		for {
+			prg := fmt.Sprintf(`include "camel"; .foo%d | camel`, i%parallelism)
+			val := fmt.Sprintf(`"quux-baz%d"`, i%parallelism)
+			out := fmt.Sprintf(`"quuxBaz%d"`, i%parallelism)
+			in := fmt.Sprintf(`{"foo%d":%s, "extra":%s}`, i%parallelism, val, generateBigJsonObject(1024, i))
+
+			res, err := NewJq().WithCallProxy(JqCall).
+				WithCache(JqDefaultCache()).
+				WithLibPath("./testdata/jq_lib").
+				Program(prg).Cached().Run(in)
+			if assert.NoError(t, err) {
+				assert.Equal(t, out, res)
+			}
+			i--
+			if i == 0 {
+				return
+			}
+		}
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(parallelism)
+	for i := 0; i < parallelism; i++ {
+
+		go func(jobId int) {
+			secs := time.Duration(2 * jobId)
+			time.Sleep(secs * time.Second)
+			fmt.Printf("Start %d\n", jobId)
+			job(jobId)
+			wg.Done()
+		}(i)
+	}
+	wg.Wait()
+}
+
+func generateBigJsonObject(size int, id int) string {
+	var b strings.Builder
+
+	b.WriteString(`{"a":"`)
+
+	bt := make([]byte, size)
+	for i := 0; i < len(bt); i++ {
+		bt[i] = ' '
+	}
+	// Put X somewher
+	bt[id%(len(bt))] = 'X'
+
+	b.Write(bt)
+	b.WriteString(`"}`)
+	return b.String()
+}
+
+func Test_BigObject(t *testing.T) {
+	t.SkipNow()
+	for i := 0; i < 100; i++ {
+		fmt.Println(generateBigJsonObject(25, i))
+	}
+}

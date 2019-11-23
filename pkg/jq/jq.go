@@ -1,8 +1,6 @@
 package jq
 
 import (
-	"strings"
-
 	"github.com/flant/libjq-go/pkg/libjq"
 )
 
@@ -82,7 +80,17 @@ func (jqp *JqProgram) Precompile() (p *JqProgram, err error) {
 // if the program is not compiled yet.
 func (jqp *JqProgram) Run(data string) (s string, e error) {
 	jqp.Jq.CallProxy(func() {
-		s, e = jqp.run(data)
+		s, e = jqp.run(data, false)
+	})
+	return
+}
+
+// RunRaw actually runs a program over passed data. It compiles program
+// if the program is not compiled yet.
+// Returns an unquoted string if filter result is a string.
+func (jqp *JqProgram) RunRaw(data string) (s string, e error) {
+	jqp.Jq.CallProxy(func() {
+		s, e = jqp.run(data, true)
 	})
 	return
 }
@@ -110,7 +118,7 @@ func (jqp *JqProgram) compile() (state *libjq.JqState, err error) {
 }
 
 // run starts compiled program.
-func (jqp *JqProgram) run(in string) (res string, err error) {
+func (jqp *JqProgram) run(inJson string, rawMode bool) (res string, err error) {
 	var state *libjq.JqState
 	state, err = jqp.compile()
 	if err != nil {
@@ -120,17 +128,5 @@ func (jqp *JqProgram) run(in string) (res string, err error) {
 		defer state.Teardown()
 	}
 
-	out := []string{}
-
-	parser := libjq.NewJVParser(0)
-	parser.SetBuffer(in)
-
-	parser.Iterate(func(jv libjq.Jv) {
-		state.Start(jv)
-		state.Iterate(func(v libjq.Jv) {
-			out = append(out, v.String())
-		})
-	})
-
-	return strings.Join(out, "\n"), nil
+	return state.ProcessOneValue(inJson, rawMode)
 }
