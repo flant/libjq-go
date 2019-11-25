@@ -6,12 +6,9 @@ import "runtime"
 libjq methods should run from main thread, so this trick with LockOsThread come up.
 */
 
-func init() {
-	runtime.LockOSThread()
-}
-
 // JqCallLoop handles external functions. This loop should be started from the main.main.
 func JqCallLoop(done chan struct{}) {
+	runtime.LockOSThread()
 	for {
 		select {
 		case f := <-jqcalls:

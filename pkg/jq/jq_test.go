@@ -3,6 +3,7 @@ package jq
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -85,12 +86,15 @@ func Test_Concurent_FieldAccess(t *testing.T) {
 		}
 	}
 
-	parallelism := 16
+	parallelism := 32
 
 	var wg sync.WaitGroup
 	wg.Add(parallelism)
 	for i := 0; i < parallelism; i++ {
 		go func() {
+			if parallelism%2 == 0 {
+				runtime.LockOSThread()
+			}
 			job()
 			wg.Done()
 		}()
