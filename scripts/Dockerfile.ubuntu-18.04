@@ -1,0 +1,13 @@
+# Script to build oniguruma and jq library in /out directory
+
+FROM ubuntu:18.04
+ENV DEBIAN_FRONTEND=noninteractive \
+    DEBCONF_NONINTERACTIVE_SEEN=true \
+    LC_ALL=C.UTF-8 \
+    LANG=C.UTF-8
+
+ADD . /libjq-go
+WORKDIR /libjq-go
+
+RUN /libjq-go/scripts/install-libjq-dependencies-ubuntu.sh && \
+    /libjq-go/scripts/build-libjq-static.sh /libjq-go /out
