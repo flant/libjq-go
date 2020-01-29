@@ -2,74 +2,63 @@ package jq
 
 import (
 	"fmt"
-	"os"
 	"runtime"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
+	. "github.com/onsi/gomega"
 )
 
-// Setup JqCallLoop for jq testing
-func TestMain(m *testing.M) {
-	exitCode := 0
-	done := make(chan struct{})
-
-	go func() {
-		exitCode = m.Run()
-		done <- struct{}{}
-	}()
-
-	JqCallLoop(done)
-
-	os.Exit(exitCode)
-}
-
 func Test_FieldAccess(t *testing.T) {
-	res, err := NewJq().WithCallProxy(JqCall).
-		Program(".foo").Run(`{"foo":"baz"}`)
-	assert.NoError(t, err)
-	assert.Equal(t, `"baz"`, res)
+	g := NewWithT(t)
+
+	res, err := NewJq().Program(".foo").Run(`{"foo":"baz"}`)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(res).To(Equal(`"baz"`))
 }
 
 func Test_JsonOutput(t *testing.T) {
+	g := NewWithT(t)
 	in := `{"foo":"baz","bar":"quux"}`
-	res, err := NewJq().WithCallProxy(JqCall).
-		Program(".").Run(in)
-	assert.NoError(t, err)
-	assert.Equal(t, in, res)
+	res, err := NewJq().Program(".").Run(in)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(res).To(Equal(in))
 }
 
 func Test_LibPath_FilteredFieldAccess(t *testing.T) {
+	g := NewWithT(t)
+
 	prg := `include "camel"; .bar | camel`
 	in := `{"foo":"baz","bar":"quux-mooz"}`
 	out := `"quuxMooz"`
 
-	res, err := NewJq().WithCallProxy(JqCall).
-		WithLibPath("./testdata/jq_lib").
+	res, err := NewJq().WithLibPath("./testdata/jq_lib").
 		Program(prg).Run(in)
-	assert.NoError(t, err)
-	assert.Equal(t, out, res)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(res).To(Equal(out))
 }
 
 func Test_CachedProgram_FieldAccess(t *testing.T) {
-	p, err := NewJq().WithCallProxy(JqCall).
-		WithCache(JqDefaultCache()).
+	g := NewWithT(t)
+
+	p, err := NewJq().WithCache(JqDefaultCache()).
 		Program(".foo").Precompile()
-	assert.NoError(t, err)
+	g.Expect(err).ShouldNot(HaveOccurred())
 
 	for i := 0; i < 50; i++ {
 		val := fmt.Sprintf(`"baz%d"`, i)
 		in := fmt.Sprintf(`{"foo":%s}`, val)
 		res, err := p.Run(in)
-		assert.NoError(t, err)
-		assert.Equal(t, val, res)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(res).To(Equal(val))
 	}
 }
 
 func Test_Concurent_FieldAccess(t *testing.T) {
+	g := NewWithT(t)
+
 	job := func() {
 		for i := 0; i < 50; i++ {
 			prg := fmt.Sprintf(`include "camel"; .foo%d | camel`, i)
@@ -77,12 +66,12 @@ func Test_Concurent_FieldAccess(t *testing.T) {
 			out := fmt.Sprintf(`"quuxBaz%d"`, i)
 			in := fmt.Sprintf(`{"foo%d":%s}`, i, val)
 
-			res, err := NewJq().WithCallProxy(JqCall).
+			res, err := NewJq().
 				WithCache(JqDefaultCache()).
 				WithLibPath("./testdata/jq_lib").
 				Program(prg).Cached().Run(in)
-			assert.NoError(t, err)
-			assert.Equal(t, out, res)
+			g.Expect(err).ShouldNot(HaveOccurred())
+			g.Expect(res).To(Equal(out))
 		}
 	}
 
@@ -102,11 +91,13 @@ func Test_Concurent_FieldAccess(t *testing.T) {
 	wg.Wait()
 }
 
-// TODO tests to catch jq processing errors: syntax, input and program run
+// TODO add more tests to catch jq processing errors: syntax, input and program run
 
-// run to catch memory leaks!
+// Uncomment SkipNow to run and catch memory leaks!
+// TODO add script to run test and watch for memory leaks
 func Test_LongRunner_BigData(t *testing.T) {
 	t.SkipNow()
+	g := NewWithT(t)
 
 	parallelism := 16
 
@@ -120,13 +111,13 @@ func Test_LongRunner_BigData(t *testing.T) {
 			out := fmt.Sprintf(`"quuxBaz%d"`, i%parallelism)
 			in := fmt.Sprintf(`{"foo%d":%s, "extra":%s}`, i%parallelism, val, generateBigJsonObject(1024, i))
 
-			res, err := NewJq().WithCallProxy(JqCall).
+			res, err := NewJq().
 				WithCache(JqDefaultCache()).
 				WithLibPath("./testdata/jq_lib").
 				Program(prg).Cached().Run(in)
-			if assert.NoError(t, err) {
-				assert.Equal(t, out, res)
-			}
+			g.Expect(err).ShouldNot(HaveOccurred())
+			g.Expect(res).To(Equal(out))
+
 			i--
 			if i == 0 {
 				return
@@ -167,8 +158,11 @@ func generateBigJsonObject(size int, id int) string {
 }
 
 func Test_BigObject(t *testing.T) {
-	t.SkipNow()
-	for i := 0; i < 100; i++ {
-		fmt.Println(generateBigJsonObject(25, i))
-	}
+	g := NewWithT(t)
+
+	g.Expect(generateBigJsonObject(25, 0)).To(Equal(`{"a":"X                        "}`))
+	g.Expect(generateBigJsonObject(25, 9)).To(Equal(`{"a":"         X               "}`))
+	g.Expect(generateBigJsonObject(25, 24)).To(Equal(`{"a":"                        X"}`))
+	g.Expect(generateBigJsonObject(25, 25)).To(Equal(generateBigJsonObject(25, 0)))
+	g.Expect(generateBigJsonObject(25, 49)).To(Equal(generateBigJsonObject(25, 24)))
 }

@@ -7,44 +7,47 @@ CGO bindings for jq with cache for compiled programs
 ```
 import (
   "fmt"
-  . "github.com/flant/libjq-go" // import Jq, JqMainThread and JqCallLoop
+  . "github.com/flant/libjq-go" // import Jq() shortcut
 )
 
 func main() {
-  // Jq instance with direct calls of libjq methods. Note that it cannot be used in go routines.
-  var jq = JqMainThread
+	// 1. Run one program with one input.
+	res, err = Jq().Program(".foo").Run(`{"foo":"bar"}`)
 
-  // Run one program with one input.
-  res, err := jq().Program(".foo").Run(`{"foo":"bar"}`)
-
-  // Use directory with jq modules.
-  res, err := jq().WithLibPath("./jq_lib").
-    Program(...).
-    Run(...)
-
-  // Use jq state cache to speedup handling of multiple inputs.
-  prg, err := jq().Program(...).Precompile()
-  for _, data := range InputJsons {
-    res, err = prg.Run(data)
-    // do something with filter result ...
-  }
-
-  // Use jq from go-routines.
-  // Jq() helper returns instance that use LockOsThread trick to run libjq methods in main thread.
-  done := make(chan struct{})
-
-  go func() {
-    res, err := Jq().Program(".foo").Run(`{"foo":"bar"}`)
-    done <- struct{}{}
-  }()
-
-  // main is locked here.
-  JqCallLoop(done)
+	// 2. Use directory with jq modules.
+	res, err = Jq().WithLibPath("./jq_lib").
+		Program(`....`).
+		Run(`...`)
+	
+	// 3. Use program text as a key for a cache.
+	for _, data := range inputJsons {
+		res, err = Jq().Program(".foo").Cached().Run(data)
+		// Do something with result ...
+	}
+	
+	// 4. Explicitly precompile jq expression.
+	prg, err := Jq().Program(".foo").Precompile()
+	for _, data := range inputJsons {
+		res, err = prg.Run(data)
+		// Do something with result ...
+	}
+	
+	// 5. It is safe to use Jq() from multiple go-routines.
+	//    Note however that programs are executed synchronously.
+	go func() {
+		res, err = Jq().Program(".foo").Run(`{"foo":"bar"}`)
+	}()
+	go func() {
+		res, err = Jq().Program(".foo").Cached().Run(`{"foo":"bar"}`)
+	}()
 }
 ```
 
+This code is available in [example.go](example/example.go) as a working example.
 
 ## Build
+
+1. Local build
 
 To build your program with this library, you should install some build dependencies and statically compile oniguruma and jq libraries:
 
@@ -63,6 +66,10 @@ Now you can build your application:
 ```
 CGO_ENABLED=1 CGO_CFLAGS="${LIBJQ_CFLAGS}" CGO_LDFLAGS="${LIBJQ_LDFLAGS}" go build <your arguments>
 ```
+
+2. Docker build
+
+If you want to build your program with docker, you can build oniguruma and jq in artifact image and then copy them to go builder image. See example of this approach in [Dockerfile](https://github.com/flant/shell-operator/blob/master/Dockerfile) of a shell-operator — the real project that use this library.
 
 ## Inspired projects
 
