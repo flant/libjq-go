@@ -9,28 +9,19 @@ High level API for libjq.
 
 Jq has this options:
 - cache
-- call proxy function
 - library path
 */
 type Jq struct {
-	Cache     *JqCache
-	CallProxy func(func())
-	LibPath   string
+	Cache   *JqCache
+	LibPath string
 }
 
 func NewJq() *Jq {
-	return &Jq{
-		CallProxy: func(f func()) { f() },
-	}
+	return &Jq{}
 }
 
 func (jq *Jq) WithCache(cache *JqCache) *Jq {
 	jq.Cache = cache
-	return jq
-}
-
-func (jq *Jq) WithCallProxy(proxy func(func())) *Jq {
-	jq.CallProxy = proxy
 	return jq
 }
 
@@ -52,7 +43,7 @@ type JqProgram struct {
 	CacheLookup bool
 }
 
-// Cached set cached flag so next call to Run will cache compiled program.
+// Cached set cached flag so next call to Run will put compiled program to cache.
 func (jqp *JqProgram) Cached() *JqProgram {
 	if jqp.Jq.Cache != nil {
 		jqp.CacheLookup = true
@@ -69,7 +60,7 @@ func (jqp *JqProgram) Precompile() (p *JqProgram, err error) {
 
 	jqp.CacheLookup = true
 
-	jqp.Jq.CallProxy(func() {
+	CgoCall(func() {
 		_, err = jqp.compile()
 	})
 
@@ -79,7 +70,7 @@ func (jqp *JqProgram) Precompile() (p *JqProgram, err error) {
 // Run actually runs a program over passed data. It compiles program
 // if the program is not compiled yet.
 func (jqp *JqProgram) Run(data string) (s string, e error) {
-	jqp.Jq.CallProxy(func() {
+	CgoCall(func() {
 		s, e = jqp.run(data, false)
 	})
 	return
@@ -89,7 +80,7 @@ func (jqp *JqProgram) Run(data string) (s string, e error) {
 // if the program is not compiled yet.
 // Returns an unquoted string if filter result is a string.
 func (jqp *JqProgram) RunRaw(data string) (s string, e error) {
-	jqp.Jq.CallProxy(func() {
+	CgoCall(func() {
 		s, e = jqp.run(data, true)
 	})
 	return
