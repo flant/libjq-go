@@ -56,7 +56,7 @@ func Test_CachedProgram_FieldAccess(t *testing.T) {
 	}
 }
 
-func Test_Concurent_FieldAccess(t *testing.T) {
+func Test_Concurrent_FieldAccess(t *testing.T) {
 	g := NewWithT(t)
 
 	job := func() {
@@ -81,7 +81,7 @@ func Test_Concurent_FieldAccess(t *testing.T) {
 	wg.Add(parallelism)
 	for i := 0; i < parallelism; i++ {
 		go func() {
-			if parallelism%2 == 0 {
+			if i%2 == 0 {
 				runtime.LockOSThread()
 			}
 			job()
@@ -89,6 +89,51 @@ func Test_Concurent_FieldAccess(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+// NOTE 02.02.2020  This test crashes with SIGABRT and trace when use jq from master
+// jq and oniguruma are downgraded to jq-1.6 tag
+//
+// Use case is to get normal literals as well as json encoded objects from base64 encoded values.
+// (.data | [to_entries[] | (.value |= (. | @base64d))] | from_entries)
+// +
+// (.data | [to_entries[] | try(.value |= (. | @base64d | fromjson))] | from_entries)
+//
+// Crash is happened when there is only try portion and fromjson is used.
+//
+func Test_jq_errors_inside_try_crash_subsequent_runs(t *testing.T) {
+
+	var r string
+	var err error
+
+	r, err = NewJq().WithCache(JqDefaultCache()).
+		Program(`.foo`).
+		Run(`{"foo":"baz"}`)
+	if err != nil {
+		t.Errorf("1: %s", err)
+	}
+	fmt.Println(r)
+
+	r, err = NewJq().WithCache(JqDefaultCache()).
+		Program(`
+try(.data.b64String |= (. | fromjson)) catch .
+`).
+		Run(`
+{ "data":{"b64JSON":"eyJwYXJzZSI6Im1lIn0=","b64String":"YWJj","jsonStr":"{\"foo\":\"bar\"}"} }`)
+
+	if err != nil {
+		t.Errorf("2: %s", err)
+	}
+	fmt.Println(r)
+
+	// This call crashes with trace on jq master
+	r, err = NewJq().WithCache(JqDefaultCache()).
+		Program(`.foo`).
+		Run(`{"foo":"bar"}`)
+	if err != nil {
+		t.Errorf("3: %s", err)
+	}
+	fmt.Println(r)
 }
 
 // TODO add more tests to catch jq processing errors: syntax, input and program run
