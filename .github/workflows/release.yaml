@@ -63,13 +63,19 @@ jobs:
       with:
         github-token: ${{secrets.GITHUB_TOKEN}}
         script: |
-          const owner = context.repository.owner.login
-          const repo = context.repository.name
-          const release_id = context.release.id
+          const owner = context.repo.owner
+          const repo = context.repo.repo
+          const release_id = '${{github.event.release.id}}'
+
+          core.warning(context.payload)
+          core.warning(context.payload.release.id)
+
 
           github.log.warn("update release args:", owner, repo, release_id)
 
-          github.repos.updateRelease({
+          core.warning("update release args:", owner, repo, release_id)
+
+          await github.repos.updateRelease({
             owner: owner,
             repo: repo,
             release_id: release_id,
