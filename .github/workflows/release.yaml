@@ -67,13 +67,16 @@ jobs:
           const repo = context.repo.repo
           const release_id = '${{github.event.release.id}}'
 
-          core.warning(context.payload)
-          core.warning(context.payload.release.id)
+          github.log.info("Information logging")
+          github.log.error("Simple error logging")
+          github.log.warn("Warning!")
+
+          github.log.warn(context.payload)
+          github.log.warn(context.payload.release.id)
 
 
           github.log.warn("update release args:", owner, repo, release_id)
 
-          core.warning("update release args:", owner, repo, release_id)
 
           await github.repos.updateRelease({
             owner: owner,
