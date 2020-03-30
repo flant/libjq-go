@@ -63,24 +63,9 @@ jobs:
       with:
         github-token: ${{secrets.GITHUB_TOKEN}}
         script: |
-          const owner = context.repo.owner
-          const repo = context.repo.repo
-          const release_id = '${{github.event.release.id}}'
-
-          github.log.info("Information logging")
-          github.log.error("Simple error logging")
-          github.log.warn("Warning!")
-
-          github.log.warn(context.payload)
-          github.log.warn(context.payload.release.id)
-
-
-          github.log.warn("update release args:", owner, repo, release_id)
-
-
           await github.repos.updateRelease({
-            owner: owner,
-            repo: repo,
-            release_id: release_id,
-            prereleased: false
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            release_id: context.payload.release.id,
+            prerelease: false
           })
