@@ -3,21 +3,13 @@
 root=$1
 out=$2
 
-mkdir -p ${out}/build/jq ${out}/build/onig
+mkdir -p ${out}/libjq
 
-echo "Build oniguruma library into ${out}/build/oniguruma"
-
-cd ${root}/modules/oniguruma
-
-autoreconf -fi
-./configure CFLAGS=-fPIC --disable-shared --prefix ${out}/build/onig
-make
-make install
-
-
-echo "Build jq library into ${out}/build/jq"
+echo "Build jq library into ${out}/libjq"
 
 cd ${root}/modules/jq
+
+git submodules update --init
 
 autoreconf -fi
 ./configure CFLAGS=-fPIC --disable-maintainer-mode \
@@ -25,11 +17,17 @@ autoreconf -fi
             --disable-shared \
             --disable-docs \
             --disable-valgrind \
-            --with-oniguruma=${out}/build/onig \
-            --prefix=${out}/build/jq
+            --with-oniguruma=builtin \
+            --prefix=${out}/libjq
 make
 make install-libLTLIBRARIES install-includeHEADERS
 
+echo Copy libonig
+
+cp modules/oniguruma/src/.libs/libonig.a ${out}/libjq/lib
+cp modules/oniguruma/src/.libs/libonig.la ${out}/libjq/lib
+cp modules/oniguruma/src/.libs/libonig.lai ${out}/libjq/lib
+
 echo "Use these flags with go build:"
-echo "CGO_CFLAGS=-I${out}/build/jq/include"
-echo "CGO_LDFLAGS=\"-L${out}/build/onig/lib -L${out}/build/jq/lib\""
+echo "CGO_CFLAGS=-I${out}/libjq/include"
+echo "CGO_LDFLAGS=-L${out}/libjq/lib"

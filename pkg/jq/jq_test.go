@@ -136,6 +136,47 @@ try(.data.b64String |= (. | fromjson)) catch .
 	fmt.Println(r)
 }
 
+func Test_jq_errors_inside_try_crash_subsequent_runs_tonumber(t *testing.T) {
+
+	var r string
+	var err error
+
+	r, err = NewJq().WithCache(JqDefaultCache()).
+		Program(`.foo`).
+		Run(`{"foo":"baz"}`)
+	if err != nil {
+		t.Errorf("1: %s", err)
+	}
+	fmt.Println(r)
+
+	prg, err := NewJq(). //WithCache(JqDefaultCache()).
+				Program(`
+.|tonumber
+`).Precompile()
+	if err != nil {
+		t.Errorf("2: %s", err)
+	}
+
+	r, err = prg.Run(`"a20"`)
+	if err != nil {
+		t.Errorf("2: %s", err)
+	}
+	fmt.Println(r)
+
+	prg2, err := NewJq().WithCache(JqDefaultCache()).Program(`.`).Precompile()
+	if err != nil {
+		t.Errorf("3 compile: %s", err)
+	}
+	fmt.Println("'.' expression compiled")
+
+	r, err = prg2.Run(`{"foo":"bar"}`)
+	if err != nil {
+		t.Errorf("3: %s", err)
+	}
+	fmt.Println(r)
+
+}
+
 // TODO add more tests to catch jq processing errors: syntax, input and program run
 
 // Uncomment SkipNow to run and catch memory leaks!

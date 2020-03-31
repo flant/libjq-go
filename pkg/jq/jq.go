@@ -89,18 +89,19 @@ func (jqp *JqProgram) RunRaw(data string) (s string, e error) {
 // compile create a jq state with compiled program and stores it in cache if needed.
 func (jqp *JqProgram) compile() (state *libjq.JqState, err error) {
 	if jqp.CacheLookup {
-		state = jqp.Jq.Cache.Get(jqp.Program)
+		inCacheState := jqp.Jq.Cache.Get(jqp.Program)
+		if inCacheState != nil {
+			return inCacheState, nil
+		}
 	}
-	if state == nil {
-		state, err = libjq.NewJqState()
-		if err != nil {
-			return nil, err
-		}
-		state.SetLibraryPath(jqp.Jq.LibPath)
-		err = state.Compile(jqp.Program)
-		if err != nil {
-			return nil, err
-		}
+	state, err = libjq.NewJqState()
+	if err != nil {
+		return nil, err
+	}
+	state.SetLibraryPath(jqp.Jq.LibPath)
+	err = state.Compile(jqp.Program)
+	if err != nil {
+		return nil, err
 	}
 	if jqp.CacheLookup {
 		jqp.Jq.Cache.Set(jqp.Program, state)
