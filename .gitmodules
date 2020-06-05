@@ -1,6 +1,3 @@
 [submodule "modules/jq"]
 	path = modules/jq
 	url = https://github.com/stedolan/jq
-[submodule "modules/oniguruma"]
-	path = modules/oniguruma
-	url = https://github.com/kkos/oniguruma
