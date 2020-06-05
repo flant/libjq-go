@@ -9,7 +9,7 @@ echo "Build jq library into '${out}'"
 
 cd ${root}/modules/jq
 
-git submodules update --init
+git submodule update --init
 
 autoreconf -fi
 ./configure CFLAGS=-fPIC --disable-maintainer-mode \
