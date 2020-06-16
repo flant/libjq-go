@@ -31,3 +31,14 @@ func JvArray(first C.jv, items ...C.jv) C.jv {
 	}
 	return arr
 }
+
+func JvArrayToGo(a C.jv) []string {
+	var l C.int = C.jv_array_length(C.jv_copy(a))
+	res := make([]string, l)
+	for i := C.int(0); i < l; i++ {
+		var item C.jv = C.jv_array_get(C.jv_copy(a), i)
+		res[i] = C.GoString(C.jv_string_value(item))
+		C.jv_free(item)
+	}
+	return res
+}

@@ -1,8 +1,63 @@
 package libjq
 
 /*
+#include <assert.h>
+#include <string.h>
 #include <stdlib.h>
+#include <jv.h>
 #include <jq.h>
+
+// jq_format_error without printing to stderr
+jv libjq_go_format_error(jv msg) {
+  if (jv_get_kind(msg) == JV_KIND_NULL ||
+      (jv_get_kind(msg) == JV_KIND_INVALID && !jv_invalid_has_msg(jv_copy(msg)))) {
+    jv_free(msg);
+    return jv_string("jq: error: out of memory");
+  }
+
+  if (jv_get_kind(msg) == JV_KIND_STRING)
+    return msg;                         // expected to already be formatted
+
+  if (jv_get_kind(msg) == JV_KIND_INVALID)
+    msg = jv_invalid_get_msg(msg);
+
+  if (jv_get_kind(msg) == JV_KIND_NULL)
+    return libjq_go_format_error(msg);        // ENOMEM
+
+  // Invalid with msg; prefix with "jq: error: "
+
+  if (jv_get_kind(msg) != JV_KIND_INVALID) {
+    if (jv_get_kind(msg) == JV_KIND_STRING)
+      return jv_string_fmt("jq: error: %s", jv_string_value(msg));
+
+    msg = jv_dump_string(msg, JV_PRINT_INVALID);
+    if (jv_get_kind(msg) == JV_KIND_STRING)
+      return jv_string_fmt("jq: error: %s", jv_string_value(msg));
+    return libjq_go_format_error(jv_null());  // ENOMEM
+  }
+
+  // An invalid inside an invalid!
+  return libjq_go_format_error(jv_invalid_get_msg(msg));
+
+}
+
+// Appends error message string to JV_ARRAY passed in data.
+static void libjq_go_err_cb(void *data, jv msg) {
+  assert(jv_get_kind(*((jv*)data)) == JV_KIND_ARRAY);
+  msg = jq_format_error(msg);
+  *((jv*)data) = jv_array_append(jv_copy(*((jv*)data)), jv_copy(msg));
+  jv_free(msg);
+}
+
+// A wrapper around jq_compile to catch compile errors.
+// The idea borrowed from jq_test.c
+int libjq_go_compile(jq_state *jq, const char* str, jv *msgs) {
+    jq_set_error_cb(jq, libjq_go_err_cb, msgs);
+	int compiled = jq_compile(jq, str);
+	jq_set_error_cb(jq, NULL, NULL);
+	return compiled;
+}
+
 */
 import "C"
 
@@ -40,14 +95,20 @@ func (jq *JqState) SetLibraryPath(path string) {
 func (jq *JqState) Compile(program string) error {
 	cProgram := C.CString(program)
 	defer C.free(unsafe.Pointer(cProgram))
-	result := C.jq_compile(jq.state, cProgram)
+
+	errMsgs := C.jv_array()
+	defer C.jv_free(errMsgs)
+
+	result := C.libjq_go_compile(jq.state, cProgram, &errMsgs)
 	if result == 0 {
-		return fmt.Errorf("failed to compile: %v", C.jq_get_error_message(jq.state))
+		msgs := JvArrayToGo(errMsgs)
+		return fmt.Errorf("compile: %v", strings.Join(msgs, "\n"))
 	} else {
 		return nil
 	}
 }
 
+// TODO create wrapper with errors catching
 func (jq *JqState) CompileArgs(program string, argsJv C.jv) error {
 	cProgram := C.CString(program)
 	defer C.free(unsafe.Pointer(cProgram))
