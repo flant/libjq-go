@@ -47,3 +47,22 @@ func Benchmark_PreCompile(b *testing.B) {
 		}
 	}
 }
+
+func Test_CompileError(t *testing.T) {
+	g := NewWithT(t)
+
+	_, err := Jq().Program(`{"message": .message"}`).Run(`{"message":"bar"}`)
+
+	g.Expect(err).Should(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("jq: error: syntax error"))
+	g.Expect(err.Error()).To(ContainSubstring("compile error"))
+	g.Expect(err.Error()).ToNot(ContainSubstring("0 0 0")) // {0 0 0 0 [0 0 0 0 0 0 0 0]}
+}
+
+func Test_RunError(t *testing.T) {
+	g := NewWithT(t)
+	_, err := Jq().Program(".foo[] | keys").Run(`{"foo":"bar"}`)
+
+	g.Expect(err).Should(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("Cannot iterate over string"))
+}
