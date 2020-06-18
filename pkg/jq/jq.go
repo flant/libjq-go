@@ -7,13 +7,15 @@ import (
 /*
 High level API for libjq.
 
-Jq has this options:
+Executor for jq programs has this options:
 - cache
 - library path
+- cgo caller function to pin jq calls to an OS thread
 */
 type Jq struct {
-	Cache   *JqCache
-	LibPath string
+	Cache     *JqCache
+	LibPath   string
+	CgoCaller CgoCaller
 }
 
 func NewJq() *Jq {
@@ -22,6 +24,11 @@ func NewJq() *Jq {
 
 func (jq *Jq) WithCache(cache *JqCache) *Jq {
 	jq.Cache = cache
+	return jq
+}
+
+func (jq *Jq) WithCgoCaller(cgoCaller CgoCaller) *Jq {
+	jq.CgoCaller = cgoCaller
 	return jq
 }
 
@@ -60,33 +67,31 @@ func (jqp *JqProgram) Precompile() (p *JqProgram, err error) {
 
 	jqp.CacheLookup = true
 
-	CgoCall(func() {
-		_, err = jqp.compile()
-	})
+	_, err = jqp.compile()
+	return jqp, err
+}
 
+// Compile compiles a program immediately, it returns error in case of syntax error.
+func (jqp *JqProgram) Compile() (p *JqProgram, err error) {
+	_, err = jqp.compile()
 	return jqp, err
 }
 
 // Run actually runs a program over passed data. It compiles program
 // if the program is not compiled yet.
+// Returns an quoted string if filter result is a string.
 func (jqp *JqProgram) Run(data string) (s string, e error) {
-	CgoCall(func() {
-		s, e = jqp.run(data, false)
-	})
-	return
+	return jqp.run(data, false)
 }
 
 // RunRaw actually runs a program over passed data. It compiles program
 // if the program is not compiled yet.
 // Returns an unquoted string if filter result is a string.
 func (jqp *JqProgram) RunRaw(data string) (s string, e error) {
-	CgoCall(func() {
-		s, e = jqp.run(data, true)
-	})
-	return
+	return jqp.run(data, true)
 }
 
-// compile create a jq state with compiled program and stores it in cache if needed.
+// compile creates a new jq state with compiled program or just returns a cached one.
 func (jqp *JqProgram) compile() (state *libjq.JqState, err error) {
 	if jqp.CacheLookup {
 		inCacheState := jqp.Jq.Cache.Get(jqp.Program)
@@ -94,15 +99,19 @@ func (jqp *JqProgram) compile() (state *libjq.JqState, err error) {
 			return inCacheState, nil
 		}
 	}
-	state, err = libjq.NewJqState()
+
+	jqp.Jq.CgoCaller(func() {
+		state, err = libjq.NewJqState()
+		if err != nil {
+			return
+		}
+		state.SetLibraryPath(jqp.Jq.LibPath)
+		err = state.Compile(jqp.Program)
+	})
 	if err != nil {
-		return nil, err
+		return
 	}
-	state.SetLibraryPath(jqp.Jq.LibPath)
-	err = state.Compile(jqp.Program)
-	if err != nil {
-		return nil, err
-	}
+
 	if jqp.CacheLookup {
 		jqp.Jq.Cache.Set(jqp.Program, state)
 	}
@@ -116,9 +125,13 @@ func (jqp *JqProgram) run(inJson string, rawMode bool) (res string, err error) {
 	if err != nil {
 		return "", err
 	}
-	if !jqp.CacheLookup {
-		defer state.Teardown()
-	}
 
-	return state.ProcessOneValue(inJson, rawMode)
+	jqp.Jq.CgoCaller(func() {
+		res, err = state.ProcessOneValue(inJson, rawMode)
+		if !jqp.CacheLookup {
+			state.Teardown()
+		}
+	})
+
+	return
 }

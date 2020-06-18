@@ -1,6 +1,7 @@
 package jq
 
 import (
+	"github.com/flant/libjq-go/pkg/libjq"
 	"testing"
 
 	. "github.com/onsi/gomega"
@@ -9,19 +10,37 @@ import (
 func Test_CgoCall(t *testing.T) {
 	g := NewWithT(t)
 
-	in := `{"foo":"baz","bar":"quux"}`
+	testProgram := `.foo`
+	testData := `{"foo": "bar"}`
+	testExpected := `"bar"`
+	testResult := ""
 
-	res, err := NewJq().Program(".").Run(in)
+	var jqState *libjq.JqState
+	var err error
+
+	caller := NewCgoCaller()
+
+	// Create jq state in locked OS thread memory.
+	caller(func() {
+		jqState, err = libjq.NewJqState()
+	})
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(res).To(Equal(in))
+	g.Expect(jqState).ShouldNot(BeNil())
 
-	g.Expect(cgoCallsCh).ToNot(BeNil(), "cgo calls channel should not be nil after first run")
-
-	res, err = NewJq().Program(".").Run(in)
+	// Compile program using created state.
+	caller(func() {
+		err = jqState.Compile(testProgram)
+	})
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(res).To(Equal(in))
+	g.Expect(jqState).ShouldNot(BeNil())
 
-	res, err = NewJq().Program(".").Run(in)
+	// Process data with compiled program.
+	caller(func() {
+		defer jqState.Teardown()
+		testResult, err = jqState.ProcessOneValue(testData, false)
+	})
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(res).To(Equal(in))
+	g.Expect(jqState).ShouldNot(BeNil())
+
+	g.Expect(testResult).Should(Equal(testExpected))
 }
