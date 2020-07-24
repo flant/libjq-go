@@ -1,6 +1,6 @@
 # libjq-go
 
-CGO bindings for jq with cache for compiled programs
+CGO bindings for jq with cache for compiled programs.
 
 ## Usage
 
@@ -45,6 +45,7 @@ func main() {
 
 This code is available in [example.go](example/example.go) as a working example.
 
+
 ## Build
 
 1. Local build
@@ -70,6 +71,19 @@ CGO_ENABLED=1 CGO_CFLAGS="${LIBJQ_CFLAGS}" CGO_LDFLAGS="${LIBJQ_LDFLAGS}" go bui
 2. Docker build
 
 If you want to build your program with docker, you can build oniguruma and jq in artifact image and then copy them to go builder image. See example of this approach in [Dockerfile](https://github.com/flant/shell-operator/blob/master/Dockerfile) of a shell-operator — the real project that use this library.
+
+
+## jq source compatibility and jq 1.6 performance
+
+This library was tested with jq-1.5, jq-1.6 and with some commits from master branch. The submodule `jq` in this repository points to unreleased commit [stedolan/jq@b6be13d](https://github.com/stedolan/jq/commit/b6be13d5de6dd7d8aad5fd871eb6b0b30fc7d7f6).
+
+Which commit should you choose? Take these considerations into account:
+
+- jq-1.5 works good, but it lucks new features.
+- jq-1.6 turns out to be slow, see: [stedolan/jq#2069](https://github.com/stedolan/jq/issues/2069) and [flant/libjq-go#10](https://github.com/flant/libjq-go/issues/10).
+- latest master have problem with `fromjson` and `tonumber` [stedolan/jq#2091](https://github.com/stedolan/jq/issues/2091).
+- [stedolan/jq@b6be13d](https://github.com/stedolan/jq/commit/b6be13d5de6dd7d8aad5fd871eb6b0b30fc7d7f6) is a commit that is later than jq-1.6, works fast and correctly handles errors in `fromjson`.
+
 
 ## Inspired projects
 
