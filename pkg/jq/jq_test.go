@@ -11,10 +11,24 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+func newJq() (*Jq, *JqCache, CgoCaller) {
+	caller := NewCgoCaller()
+	cache := NewJqCache()
+	return NewJq().WithCache(cache).WithCgoCaller(caller), cache, caller
+}
+
+func newSimpleJq() *Jq {
+	caller := NewCgoCaller()
+	cache := NewJqCache()
+	return NewJq().WithCache(cache).WithCgoCaller(caller)
+}
+
 func Test_FieldAccess(t *testing.T) {
 	g := NewWithT(t)
 
-	res, err := NewJq().Program(".foo").Run(`{"foo":"baz"}`)
+	testJq := newSimpleJq()
+
+	res, err := testJq.Program(".foo").Run(`{"foo":"baz"}`)
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(res).To(Equal(`"baz"`))
 }
@@ -22,7 +36,7 @@ func Test_FieldAccess(t *testing.T) {
 func Test_JsonOutput(t *testing.T) {
 	g := NewWithT(t)
 	in := `{"foo":"baz","bar":"quux"}`
-	res, err := NewJq().Program(".").Run(in)
+	res, err := newSimpleJq().Program(".").Run(in)
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(res).To(Equal(in))
 }
@@ -34,16 +48,40 @@ func Test_LibPath_FilteredFieldAccess(t *testing.T) {
 	in := `{"foo":"baz","bar":"quux-mooz"}`
 	out := `"quuxMooz"`
 
-	res, err := NewJq().WithLibPath("./testdata/jq_lib").
+	res, err := newSimpleJq().WithLibPath("./testdata/jq_lib").
 		Program(prg).Run(in)
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(res).To(Equal(out))
 }
 
+func Test_LibPath_Different(t *testing.T) {
+	g := NewWithT(t)
+
+	invoker := newSimpleJq()
+
+	prg := `include "camel"; .bar | camel`
+	in := `{"foo":"baz","bar":"quux-mooz"}`
+	out := `"quuxMooz"`
+
+	res, err := invoker.WithLibPath("./testdata/jq_lib").
+		Program(prg).Run(in)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(res).To(Equal(out))
+
+	prg2 := `include "camel2"; .foobar | camel2`
+	in2 := `{"baz":"foo","foobar":"qwe-asd-zcx"}`
+	out2 := `"qweAsdZcx"`
+
+	res, err = invoker.WithLibPath("./testdata/jq_lib_2").
+		Program(prg2).Run(in2)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(res).To(Equal(out2))
+}
+
 func Test_CachedProgram_FieldAccess(t *testing.T) {
 	g := NewWithT(t)
 
-	p, err := NewJq().WithCache(JqDefaultCache()).
+	p, err := newSimpleJq().
 		Program(".foo").Precompile()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
@@ -59,6 +97,8 @@ func Test_CachedProgram_FieldAccess(t *testing.T) {
 func Test_Concurrent_FieldAccess(t *testing.T) {
 	g := NewWithT(t)
 
+	_, cache, caller := newJq()
+
 	job := func() {
 		for i := 0; i < 50; i++ {
 			prg := fmt.Sprintf(`include "camel"; .foo%d | camel`, i)
@@ -66,8 +106,7 @@ func Test_Concurrent_FieldAccess(t *testing.T) {
 			out := fmt.Sprintf(`"quuxBaz%d"`, i)
 			in := fmt.Sprintf(`{"foo%d":%s}`, i, val)
 
-			res, err := NewJq().
-				WithCache(JqDefaultCache()).
+			res, err := NewJq().WithCache(cache).WithCgoCaller(caller).
 				WithLibPath("./testdata/jq_lib").
 				Program(prg).Cached().Run(in)
 			g.Expect(err).ShouldNot(HaveOccurred())
@@ -102,11 +141,13 @@ func Test_Concurrent_FieldAccess(t *testing.T) {
 // Crash is happened when there is only try portion and fromjson is used.
 //
 func Test_jq_errors_inside_try_crash_subsequent_runs(t *testing.T) {
+	caller := NewCgoCaller()
+	cache := NewJqCache()
 
 	var r string
 	var err error
 
-	r, err = NewJq().WithCache(JqDefaultCache()).
+	r, err = NewJq().WithCache(cache).WithCgoCaller(caller).
 		Program(`.foo`).
 		Run(`{"foo":"baz"}`)
 	if err != nil {
@@ -114,7 +155,7 @@ func Test_jq_errors_inside_try_crash_subsequent_runs(t *testing.T) {
 	}
 	fmt.Println(r)
 
-	r, err = NewJq().WithCache(JqDefaultCache()).
+	r, err = NewJq().WithCache(cache).
 		Program(`
 try(.data.b64String |= (. | fromjson)) catch .
 `).
@@ -127,7 +168,7 @@ try(.data.b64String |= (. | fromjson)) catch .
 	fmt.Println(r)
 
 	// This call crashes with trace on jq master
-	r, err = NewJq().WithCache(JqDefaultCache()).
+	r, err = NewJq().WithCache(cache).WithCgoCaller(caller).
 		Program(`.foo`).
 		Run(`{"foo":"bar"}`)
 	if err != nil {
@@ -136,12 +177,14 @@ try(.data.b64String |= (. | fromjson)) catch .
 	fmt.Println(r)
 }
 
-func Test_jq_errors_inside_try_crash_subsequent_runs_tonumber(t *testing.T) {
+func Test_jq_errors_inside_try_should_not_crash_subsequent_runs_tonumber(t *testing.T) {
+	caller := NewCgoCaller()
+	cache := NewJqCache()
 
 	var r string
 	var err error
 
-	r, err = NewJq().WithCache(JqDefaultCache()).
+	r, err = NewJq().WithCache(cache).WithCgoCaller(caller).
 		Program(`.foo`).
 		Run(`{"foo":"baz"}`)
 	if err != nil {
@@ -149,9 +192,11 @@ func Test_jq_errors_inside_try_crash_subsequent_runs_tonumber(t *testing.T) {
 	}
 	fmt.Println(r)
 
-	prg, err := NewJq(). //WithCache(JqDefaultCache()).
-				Program(`
-.|tonumber
+	prg, err := NewJq().
+		//WithCache(cache).
+		WithCgoCaller(caller).
+		Program(`
+try (.|tonumber)
 `).Precompile()
 	if err != nil {
 		t.Errorf("2: %s", err)
@@ -163,7 +208,8 @@ func Test_jq_errors_inside_try_crash_subsequent_runs_tonumber(t *testing.T) {
 	}
 	fmt.Println(r)
 
-	prg2, err := NewJq().WithCache(JqDefaultCache()).Program(`.`).Precompile()
+	prg2, err := NewJq().WithCache(cache).WithCgoCaller(caller).
+		Program(`.`).Precompile()
 	if err != nil {
 		t.Errorf("3 compile: %s", err)
 	}
@@ -185,6 +231,9 @@ func Test_LongRunner_BigData(t *testing.T) {
 	t.SkipNow()
 	g := NewWithT(t)
 
+	caller := NewCgoCaller()
+	cache := NewJqCache()
+
 	parallelism := 16
 
 	// There are `parallelism` of different programs and fooXXX fields,
@@ -197,8 +246,7 @@ func Test_LongRunner_BigData(t *testing.T) {
 			out := fmt.Sprintf(`"quuxBaz%d"`, i%parallelism)
 			in := fmt.Sprintf(`{"foo%d":%s, "extra":%s}`, i%parallelism, val, generateBigJsonObject(1024, i))
 
-			res, err := NewJq().
-				WithCache(JqDefaultCache()).
+			res, err := NewJq().WithCache(cache).WithCgoCaller(caller).
 				WithLibPath("./testdata/jq_lib").
 				Program(prg).Cached().Run(in)
 			g.Expect(err).ShouldNot(HaveOccurred())

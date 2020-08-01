@@ -23,9 +23,8 @@ func JvString(str string) C.jv {
 }
 
 // JvArray returns a jv array value. jq sources has JV_ARRAY macros for this.
-func JvArray(first C.jv, items ...C.jv) C.jv {
+func JvArray(items ...C.jv) C.jv {
 	arr := C.jv_array()
-	arr = C.jv_array_append(arr, first)
 	for _, item := range items {
 		arr = C.jv_array_append(arr, item)
 	}

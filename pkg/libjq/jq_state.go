@@ -68,6 +68,10 @@ import (
 	"unsafe"
 )
 
+// JqState is a thin wrapper for jq_init, jq_set_attr, jq_compile and jq_start.
+//
+// It is responsibility of a higher level to call JqState methods in one thread
+// as libjq is not compatible with Go's thread migration.
 type JqState struct {
 	state *C.struct_jq_state
 }
@@ -92,6 +96,7 @@ func (jq *JqState) SetLibraryPath(path string) {
 	C.jq_set_attr(jq.state, JvString("JQ_LIBRARY_PATH"), JvArray(JvString(path)))
 }
 
+// Compile
 func (jq *JqState) Compile(program string) error {
 	cProgram := C.CString(program)
 	defer C.free(unsafe.Pointer(cProgram))
