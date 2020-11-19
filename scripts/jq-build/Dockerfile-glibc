@@ -1,0 +1,33 @@
+# ============================
+#        Builder
+# ============================
+FROM  --platform=${TARGETPLATFORM:-linux/amd64} debian:buster as builder
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    DEBCONF_NONINTERACTIVE_SEEN=true \
+    LC_ALL=C.UTF-8 \
+    LANG=C.UTF-8
+
+# Install build dependencies.
+RUN apt-get update && \
+    apt-get install -y build-essential autoconf automake libtool git bison flex wget
+
+# Create directories for scripts, jq sources and output.
+RUN mkdir /app /jq /out
+
+COPY checkout.sh /app
+COPY build-unix.sh /app
+
+# Checkout jq commit.
+ARG JQ_GIT_SHA
+RUN /app/checkout.sh $JQ_GIT_SHA /jq
+
+# Build libjq and jq binary, create checksum file in /out.
+RUN /app/build-unix.sh /jq /out
+
+# ============================
+#        Final image
+# ============================
+FROM scratch
+COPY --from=builder /out/ /
+ENTRYPOINT ["/bin/jq"]

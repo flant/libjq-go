@@ -1,0 +1,51 @@
+name: Example workflow for prepare.yaml
+on:
+  push:
+    tags:
+      - '*'
+env:
+  BASE_IMAGE_NAME: repo/name
+jobs:
+  check_tag_format:
+    name: Get release info
+    runs-on: [ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Get release info
+        uses: actions/github-script@v3
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const script = require(`${process.env.GITHUB_WORKSPACE}/prepare.js`)
+            script.checkTagFormat(github, context, core)
+
+  build:
+    name: Build
+    runs-on: [ubuntu-latest]
+    needs: check_tag_format
+    strategy:
+      fail-fast: false
+      matrix:
+        flavour:
+          - ubuntu
+          - alpine
+          - centos
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Prepare build envs
+        uses: actions/github-script@v3
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const script = require(`${process.env.GITHUB_WORKSPACE}/prepare.js`)
+            script.prepareEnvsForBuild(github, context, core)
+
+      - name: Build ${{ matrix.flavour }}
+        run: |
+          echo JQ_GIT_TAG=$JQ_GIT_TAG
+          echo BUILD_ID=$BUILD_ID
+          echo DOCKER_TAG=$DOCKER_TAG
+
+          docker build . --build-arg tag=$JQ_GIT_TAG --build-arg buildId=$BUILD_ID -t $BASE_IMAGE_NAME:$DOCKER_TAG-${{ matrix.flavour }} -f Dockerfile-${{ matrix.flavour }}

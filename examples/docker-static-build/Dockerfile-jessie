@@ -1,0 +1,5 @@
+FROM libjq-go-static:latest as static
+
+FROM debian:jessie
+COPY --from=static /example /
+ENTRYPOINT ["/example"]

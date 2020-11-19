@@ -1,0 +1,29 @@
+# libjq static libraries for alpine
+FROM flant/jq:b6be13d5-musl as libjq
+
+# It works too!
+#FROM golang:1.11-alpine3.7 as builder
+#RUN apk add git
+
+# go builder
+FROM golang:1.15-alpine as builder
+# Install CGO dependencies.
+RUN apk add musl-dev gcc
+# Prepare sources
+RUN mkdir /app
+COPY . /app
+WORKDIR /app
+# Copy libjq static libraries
+COPY --from=libjq /libjq /app/libjq/
+
+# Build static binary without debug information.
+RUN CGO_ENABLED=1 \
+    CGO_CFLAGS="-I$(pwd)/libjq/include" \
+    CGO_LDFLAGS="-L$(pwd)/libjq/lib" \
+    go build -ldflags="-linkmode external -extldflags '-static' -s -w" example.go
+
+
+# Put result binary file into scratch final image.
+FROM scratch
+COPY --from=builder /app/example /
+ENTRYPOINT ["/example"]

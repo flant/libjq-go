@@ -1,0 +1,26 @@
+name: Example workflow for get-release.yaml
+on:
+  push:
+    tags:
+      - '*'
+jobs:
+  get_release_info:
+    name: Get release info
+    runs-on: [ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Get release info
+        id: get_release
+        uses: actions/github-script@v3
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const script = require(`${process.env.GITHUB_WORKSPACE}/get-release.js`)
+            return await script(github, context, core)
+
+      - name: release id consumer
+        run: |
+          echo release id is ${{ steps.get_release.outputs.id }}
+          echo release upload_url is  ${{ steps.get_release.outputs.upload_url }}
+          echo result is ${{ steps.get_release.outputs.result }}
