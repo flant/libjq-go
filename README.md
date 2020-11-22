@@ -8,6 +8,8 @@
 
 CGO bindings for jq with cache for compiled programs and ready-to-use static builds of libjq.
 
+No dependencies in go.mod! :+1:
+
 ## Usage
 
 ```
