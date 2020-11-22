@@ -1,0 +1,23 @@
+# libjq static libraries for alpine
+FROM flant/jq:b6be13d5-glibc as libjq
+
+# go builder.
+FROM golang:1.15-buster as builder
+
+RUN mkdir /app
+COPY . /app
+WORKDIR /app
+
+# Copy libjq static libraries
+COPY --from=libjq /libjq /app/libjq/
+
+RUN CGO_ENABLED=1 \
+    CGO_CFLAGS="-I$(pwd)/libjq/include" \
+    CGO_LDFLAGS="-L$(pwd)/libjq/lib" \
+    go build example.go
+
+# Final image
+FROM debian:buster
+COPY --from=builder /app/example /
+ENTRYPOINT ["/example"]
+

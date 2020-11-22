@@ -1,0 +1,25 @@
+# libjq static libraries for alpine
+FROM flant/jq:b6be13d5-musl as libjq
+
+# go builder.
+FROM golang:1.15-alpine as builder
+
+RUN apk add gcc musl-dev
+
+RUN mkdir /app
+COPY . /app
+WORKDIR /app
+
+# Copy libjq static libraries
+COPY --from=libjq /libjq /app/libjq/
+
+RUN CGO_ENABLED=1 \
+    CGO_CFLAGS="-I$(pwd)/libjq/include" \
+    CGO_LDFLAGS="-L$(pwd)/libjq/lib" \
+    go build example.go
+
+# Final image
+FROM alpine:3.12
+COPY --from=builder /app/example /
+ENTRYPOINT ["/example"]
+

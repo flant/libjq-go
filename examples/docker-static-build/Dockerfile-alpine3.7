@@ -1,0 +1,5 @@
+FROM libjq-go-static:latest as static
+
+FROM alpine:3.7
+COPY --from=static /example /
+ENTRYPOINT ["/example"]
