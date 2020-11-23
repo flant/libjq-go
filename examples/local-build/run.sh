@@ -8,7 +8,7 @@ if [[ $1 == "--clean" ]] ; then
 fi
 
 echo "=============================================="
-echo "  Download and unpack pre-built libjq..."
+echo "  Download and unpack prebuilt libjq..."
 echo "=============================================="
 wget https://github.com/flant/libjq-go/releases/download/jq-b6be13d5-0/libjq-glibc-amd64.tgz
 tar zxf libjq-glibc-amd64.tgz

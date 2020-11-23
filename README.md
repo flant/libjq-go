@@ -58,7 +58,7 @@ The full code is available in [example.go](./examples/simple/example.go).
 
 ## 1. Local build
 
-The recommended and fastest way to build your program with libjq-go is to use pre-built static libjq, available in [Releases](https://github.com/flant/libjq-go/releases). See [local-build](./examples/local-build) example for inspiration.
+The recommended and fastest way to build your program with libjq-go is to use prebuilt libjq static libraries, available in [Releases](https://github.com/flant/libjq-go/releases). See [local-build](./examples/local-build) example for inspiration.
 
 ```
 wget https://github.com/flant/libjq-go/releases/download/jq-b6be13d5-0/libjq-glibc-amd64.tgz
@@ -98,7 +98,7 @@ COPY --from=builder ...
 
 Full source is available in [simple](./examples/simple) example.
 
-If pre-built libjq is not an option, you can build static libjq in a separate image and then copy libjq to 'go builder' image. See this approach in a [Dockerfile](https://github.com/flant/shell-operator/blob/v1.0.0-beta.13/Dockerfile) of `flant/shell-operator` project.
+If prebuilt libjq is not an option, you can build static libjq in a separate image and then copy libjq to 'go builder' image. See this approach in a [Dockerfile](https://github.com/flant/shell-operator/blob/v1.0.0-beta.13/Dockerfile) of `flant/shell-operator` project.
 
 ## 3. Static build
 
@@ -130,7 +130,7 @@ See [docker-static-build](./examples/docker-static-build) example.
 TL;DR
 
 - If your program works as a cli filter for one jq expression (like `jq` command itself) you can use any commit from `stedolan/jq`.
-- If your program works as a server and process many jq expressions, consider use b6be13d5 commit and pre-built libjq assets.
+- If your program works as a server and process many jq expressions, consider use b6be13d5 commit and prebuilt libjq assets.
 
 Long story:
 
@@ -148,15 +148,13 @@ Which commit should you choose? Take these considerations into account:
 
 libjq-go is known to work with Go 1.11 and later versions.
 
-## pre-built jq
+## prebuilt libjq
 
-For faster builds we publish pre-built libjq in [flant/jq](https://hub.docker.com/repository/docker/flant/jq) repository on hub.docker.com. Also, there are assets in jq-* [releases](https://github.com/flant/libjq-go/releases) in this repo on github.
+For faster builds we publish prebuilt libjq static libraries (and jq command) in [flant/jq](https://hub.docker.com/repository/docker/flant/jq) repository on hub.docker.com. Also, there are assets in jq-* [releases](https://github.com/flant/libjq-go/releases) in this repo on github.
 
 `glibc` build is known to work in debian:stretch, debian:buster, ubuntu:18.04, ubuntu:20.04 (and seems to work in alpine).
 
 `musl` build is known to work in alpine:3.7+ (You can even compile your program using `golang:1.11-alpine3.7`!)
-
-> Note: `flant/jq` image contains /bin/jq binary.
 
 ## Inspired projects
 
